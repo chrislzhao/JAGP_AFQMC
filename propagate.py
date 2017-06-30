@@ -4,15 +4,16 @@ import itertools
 import random
 from scipy import misc
 import pdb
+import sys
 
 # number of spatial orbitals
-norb = 8
+norb = int(sys.argv[1])
 
 # number of alpha electrons
-nalpha = 3
+nalpha = int(sys.argv[2])
 
 # Hubbard on-site repulsion
-U = 4.0
+U = float(sys.argv[3])
 
 # function that reads in formic's output Jastrow factor
 def read_jastrow(file_name):
@@ -499,8 +500,8 @@ def energy_grid(F0, Q, w, oe_int):
     x_sample(level, X)
 
   # loop over all field operators
-  for x in range(len(X)):
-    for y in range(len(X)):
+  for x in X:
+    for y in X:
 
       # propagate F
       F1 = f_propagate(x, Q, w, current_lF)
@@ -514,7 +515,7 @@ def energy_grid(F0, Q, w, oe_int):
 
       # compute weight
       weight = 1.0
-      for k in range(len(X[i])):
+      for k in range(len(x)):
         weight *= np.exp(-0.5 * x[k]**2)
         weight *= np.exp(-0.5 * y[k]**2)
 
@@ -797,6 +798,7 @@ def Importance_Sampling(F0, Nsamp, Q, w, oe_int):
 
 def main():
   
+  print U
   # name of formic same-spin jastrow factor
   jaa_name = "jaa.txt"
 
