@@ -471,7 +471,7 @@ def Metropolis(F0, Nsamp, Q, w, oe_int):
   return nu / dn
 
 # function that evaluate energy on a grid
-def energy_grid(F0, Q, w, oe_int):
+def energy_grid(F0, exct, Q, w, oe_int):
   
   # current left and right
   current_lF = np.zeros((norb, norb), dtype=complex)
@@ -493,9 +493,9 @@ def energy_grid(F0, Q, w, oe_int):
   X = []
 
   # generate X
-  exct = [0]
-  for level in exct:
-    x_sample(level, X)
+  #exct = [0]
+  #for level in exct:
+  x_sample(exct, X)
 
   # loop over all field operators
   for x in X:
@@ -819,14 +819,19 @@ def main():
   # read in one-electron integral
   oe_int = read_oe_int(oe_int_name)
 
-  # number of samples
-  nsamp = 30
-
   # propagate initial AGP and compute energy
-  #energy = Metropolis(F, nsamp, Q, pho, oe_int)
-  #energy = Rand_Samp(F, nsamp, Q, pho, oe_int)
-  energy = energy_grid(F, Q, pho, oe_int)
-  #energy = Metropolis2(F, nsamp, Q, pho, oe_int)
+  method = sys.argv[4]
+  if (method == "MC"):
+    nsamp  = int(sys.argv[5])
+    energy = Metropolis2(F, nsamp, Q, pho, oe_int)
+  elif (method == "Rand_Samp"):
+    nsamp  = int(sys.argv[5])
+    energy = Rand_Samp(F, nsamp, Q, pho, oe_int)
+  elif (method == "Grid"):
+    exct   = int(sys.argv[5])
+    energy = energy_grid(F, exct, Q, pho, oe_int)
+  else:
+    print "Unknown Method"
   #Importance_Sampling(F, nsamp, Q, pho, oe_int)
 
   # print final energy
