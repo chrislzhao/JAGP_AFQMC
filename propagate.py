@@ -183,7 +183,6 @@ def Pf(P, n):
  
  # first compute the root of characteristic polynomial of P
  roots = np.roots(np.poly(P))
- #print roots
 
  # find unique roots
  unique_roots = []
@@ -314,7 +313,6 @@ def tb_G(F1, F2, a, b, d, c):
       # part two
       part2 += (-1.0)**(i+j) * (np.dot(np.linalg.matrix_power(M,i), rF))[c][d] * (np.dot(lF.transpose().conjugate(), np.linalg.matrix_power(M, j)))[b][a]
    
-    #print part2
     integral += ((part1 + part2) * Pf(P, m))
  
   return integral
@@ -495,7 +493,7 @@ def energy_grid(F0, Q, w, oe_int):
   X = []
 
   # generate X
-  exct = [1]
+  exct = [0]
   for level in exct:
     x_sample(level, X)
 
@@ -573,8 +571,6 @@ def Rand_Samp(F0, Nsamp, Q, w, oe_int):
     X1.append(x)
     #X2.append(x2)
 
-  #print X1[0]
-  #print X1[1]
   nu = 0.0+0.0j
   de = 0.0+0.0j
   # loop over all auxiliary field vectors
@@ -776,11 +772,8 @@ def Importance_Sampling(F0, Nsamp, Q, w, oe_int):
         # compute S
         S[i][j] = ovlp_compute(F1, F2)
 
-    print H
-    print S
     # diagonalize this matrix
     w, v = np.linalg.eigh(np.dot(np.linalg.inv(S), H))
-    #print w
 
     # find the lowest eigenvalue
     lowest_eng = w[0]
@@ -798,7 +791,6 @@ def Importance_Sampling(F0, Nsamp, Q, w, oe_int):
 
 def main():
   
-  print U
   # name of formic same-spin jastrow factor
   jaa_name = "jaa.txt"
 
@@ -814,7 +806,6 @@ def main():
 
   #perform eigen-decomposition of J matrix
   pho,Q = np.linalg.eig(J)
-  #print Q
 
   # name of pairing matrix
   pmat_name = "pmat.txt"
