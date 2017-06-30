@@ -541,7 +541,8 @@ def Rand_Samp(F0, Nsamp, Q, w, oe_int):
   # collections of denominator local quantities
   denominator = []
 
-  X1 = []
+  # store randomly sampled vectors
+  X = []
 
   # current left and right
   current_lF = np.zeros((norb, norb), dtype=complex)
@@ -555,36 +556,20 @@ def Rand_Samp(F0, Nsamp, Q, w, oe_int):
   # open output file
   infile = open("test.txt", "w")
 
-  # initial field vector
-  x1 = [0.0]*(norb*2)
-  x2 = [0.0]*(norb*2)
-
   # generate auxiliary filed vectors
   for samp in range(Nsamp):
     
-    index1 = np.random.randint(0,norb*2)
-    rand1 = np.random.normal(0.0,1.0)
-    x1[index1] = rand1
+    # sample from gaussian distributation
     x = []
-    for i in range(len(x1)):
+    for i in range(2*norb):
      x.append(np.random.normal(0.0,1.0))
-    X1.append(x)
-    #X2.append(x2)
+    X.append(x)
 
   nu = 0.0+0.0j
   de = 0.0+0.0j
   # loop over all auxiliary field vectors
-  for xl in X1:
-    for xr in X1:
-
-      exp1 = 1.0 
-      exp2 = 1.0
-      for i in range(norb*2):
-        exp1 *= np.exp(-0.5 * xl[i]**2)
-        exp2 *= np.exp(-0.5 * xr[i]**2) 
-
-      exp_tot = exp1*exp2
-      infile.write("%12.12f\n" % exp_tot)
+  for xl in X:
+    for xr in X:
 
       # propagate initial state
       F1 = f_propagate(xl, Q, w, current_lF)
@@ -594,13 +579,11 @@ def Rand_Samp(F0, Nsamp, Q, w, oe_int):
       hmat = ham_compute(F1, F2, oe_int)
       numerator.append(hmat)
       nu += hmat
-      infile.write("%12.12f  %12.12f\n" % (hmat.real, hmat.imag))
 
       # compute denominator
       smat = ovlp_compute(F1, F2)
       denominator.append(smat)
       de += smat
-      infile.write("%12.12f  %12.12f\n" % (smat.real, smat.imag))
 
   # close output file
   infile.close()
@@ -683,30 +666,15 @@ def Metropolis2(F0, Nsamp, Q, w, oe_int):
       F1 = f_propagate(xl, Q, w, current_lF)
       F2 = f_propagate(xr, Q, w, current_rF)
 
-      # compute the norm of F2 and F1
-      #norm1 = np.sqrt(ovlp_compute(F1,F1))
-      #norm2 = np.sqrt(ovlp_compute(F2,F2))
-      #norm1 = np.power(norm1, 1.0/nalpha)
-      #norm2 = np.power(norm2, 1.0/nalpha)
-      #for i in range(norb):
-      #  for j in range(norb):
-      #    F1[i][j] /= norm1
-      #    F2[i][j] /= norm2
-
-      weight = 1.0
-      infile.write( "%12.12f \n" % weight )
-
       # compute numerator
       hmat = ham_compute(F1, F2, oe_int)
       numerator.append(hmat)
       nu += hmat
-      infile.write( "%12.12f  %12.12f\n" % (hmat.real, hmat.imag))
 
       # compute denominator
       smat = ovlp_compute(F1, F2)
       denominator.append(smat)
       dn += smat
-      infile.write( "%12.12f  %12.12f\n" % (smat.real, smat.imag))
 
   # close output file
   infile.close()
