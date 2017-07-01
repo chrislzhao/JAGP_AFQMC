@@ -568,22 +568,26 @@ def Rand_Samp(F0, Nsamp, Q, w, oe_int):
   nu = 0.0+0.0j
   de = 0.0+0.0j
   # loop over all auxiliary field vectors
-  for xl in X:
-    for xr in X:
+  for l in range(len(X)):
+    for r in range(l, len(X)):
 
       # propagate initial state
-      F1 = f_propagate(xl, Q, w, current_lF)
-      F2 = f_propagate(xr, Q, w, current_rF)
+      F1 = f_propagate(X[l], Q, w, current_lF)
+      F2 = f_propagate(X[r], Q, w, current_rF)
 
       # compute numerator
       hmat = ham_compute(F1, F2, oe_int)
       numerator.append(hmat)
       nu += hmat
+      if (r != l):
+        nu += np.conjugate(hmat)
 
       # compute denominator
       smat = ovlp_compute(F1, F2)
       denominator.append(smat)
       de += smat
+      if (r != l):
+        de += np.conjugate(smat)
 
   # close output file
   infile.close()
@@ -798,6 +802,9 @@ def main():
   elif (method == "Grid"):
     exct   = int(sys.argv[5])
     energy = energy_grid(F, exct, Q, pho, oe_int)
+  elif (method == "Non_Var"):
+    nsamp = int(sys.argv[5])
+    energy = Metropolis(F, nsamp, Q, pho, oe_int)
   else:
     print "Unknown Method"
   #Importance_Sampling(F, nsamp, Q, pho, oe_int)
