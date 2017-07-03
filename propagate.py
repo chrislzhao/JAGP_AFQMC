@@ -567,6 +567,8 @@ def Rand_Samp(F0, Nsamp, Q, w, oe_int):
 
   nu = 0.0+0.0j
   de = 0.0+0.0j
+  S = np.zeros((len(X),len(X)), dtype=complex)
+  H = np.zeros((len(X),len(X)), dtype=complex)
   # loop over all auxiliary field vectors
   for l in range(len(X)):
     for r in range(l, len(X)):
@@ -578,17 +580,27 @@ def Rand_Samp(F0, Nsamp, Q, w, oe_int):
       # compute numerator
       hmat = ham_compute(F1, F2, oe_int)
       numerator.append(hmat)
+      H[l][r] = hmat
       nu += hmat
       if (r != l):
         nu += np.conjugate(hmat)
+        H[r][l] = np.conjugate(hmat)
 
       # compute denominator
       smat = ovlp_compute(F1, F2)
       denominator.append(smat)
+      S[l][r] = smat
       de += smat
       if (r != l):
         de += np.conjugate(smat)
+        S[r][l] = np.conjugate(smat)
 
+  w, v = np.linalg.eig(np.dot(np.linalg.pinv(S),H))
+  lowest_eng = w[0].real
+  for eigval in w:
+    if (eigval.real < lowest_eng):
+      lowest_eng = eigval.real
+  print lowest_eng
   # close output file
   infile.close()
 
@@ -716,10 +728,7 @@ def Importance_Sampling(F0, Nsamp, Q, w, oe_int):
       current_lF[i][j] = F0[i][j]
       current_rF[i][j] = F0[i][j]
 
-  # open output file
-  infile = open("test.txt", "w")
-
-  for iteration in range(1):
+  for iteration in range(10):
 
     # generate auxiliary filed vectors
     for samp in range(Nsamp):
@@ -732,34 +741,74 @@ def Importance_Sampling(F0, Nsamp, Q, w, oe_int):
 
     # compute matrix elements
     for i in range(len(X_samp)):
-      for j in range(len(X_samp)):
+      for j in range(i, len(X_samp)):
 
+        #print "%i %i" % (i, j)
         # propagate initial state
         F1 = f_propagate(X_samp[i], Q, w, current_lF)
         F2 = f_propagate(X_samp[j], Q, w, current_rF)
 
         # compute H
         H[i][j] = ham_compute(F1, F2, oe_int)
+        if (i != j):
+          H[j][i] = np.conjugate(H[i][j])
 
         # compute S
         S[i][j] = ovlp_compute(F1, F2)
+        if (i != j):
+          S[j][i] = np.conjugate(S[i][j])
 
     # diagonalize this matrix
-    w, v = np.linalg.eigh(np.dot(np.linalg.inv(S), H))
+    eigval, eigvec = np.linalg.eig(np.dot(np.linalg.pinv(S), H))
+    print eigval
 
     # find the lowest eigenvalue
-    lowest_eng = w[0]
+    lowest_eng = eigval[0].real
     lowest_ind = 0
-    for i in range(len(w)):
-      if (w[i] < lowest_eng):
-        lowest_eng = w[i]
+    for i in range(len(eigval)):
+      if (eigval[i] < lowest_eng):
+        lowest_eng = eigval[i].real
         lowest_ind = i
 
     # print out 
-    infile.write("iter = %i, energy = %12.12f" % (iteration, lowest_eng))
+    print "iter = %i, energy = %12.12f" % (iteration, lowest_eng)
 
-  # close output file
-  infile.close()
+    # add the most important x
+    for ind in range(len(X_samp)):
+      if (abs(eigvec[ind][lowest_ind]) > 0.1):
+        X_importance.append(X_samp[ind])
+
+    # clear X_sample
+    del X_samp[:]
+
+  Hf = np.zeros((len(X_importance), len(X_importance)), dtype=complex)
+  Sf = np.zeros((len(X_importance), len(X_importance)), dtype=complex)
+  # after all iterations are done, compute energy
+  for i in range(len(X_importance)):
+    for j in range(i, len(X_importance)):
+      
+      # propagate initial state
+      F1 = f_propagate(X_importance[i], Q, w, current_lF)
+      F2 = f_propagate(X_importance[j], Q, w, current_rF)
+
+      # compute H
+      Hf[i][j] = ham_compute(F1, F2, oe_int)
+      if (i != j):
+        Hf[j][i] = np.conjugate(Hf[i][j])
+
+      # compute S
+      Sf[i][j] = ovlp_compute(F1, F2)
+      if (i != j):
+        Sf[j][i] = np.conjugate(Sf[i][j])
+
+  # diagonalize this matrix
+  eigval, eigvec = np.linalg.eig(np.dot(np.linalg.pinv(Sf), Hf))
+  #for i in range(len(X_importance)):
+  #  for j in range(len(X_importance)):
+  #    print "%5.5f + %5.5f i  " % (Sf[i][j].real, Sf[i][j].imag),
+  #  print "\n"
+  #eigval, eigvec = np.linalg.eig(Hf)
+  print eigval
 
 def main():
   
@@ -805,6 +854,9 @@ def main():
   elif (method == "Non_Var"):
     nsamp = int(sys.argv[5])
     energy = Metropolis(F, nsamp, Q, pho, oe_int)
+  elif (method == "Important"):
+    nsamp = int(sys.argv[5])
+    energy = Importance_Sampling(F, nsamp, Q, pho, oe_int)
   else:
     print "Unknown Method"
   #Importance_Sampling(F, nsamp, Q, pho, oe_int)
