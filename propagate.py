@@ -92,14 +92,15 @@ def read_pmat(file_name):
   # open same-spin jastrow factor data
   infile = open(file_name, "r")
 
-  pmat = np.zeros((norb, norb), dtype=complex)
+  pmat = np.zeros((2*norb, 2*norb), dtype=complex)
 
   line_num = 0
   #fill in pairing matrix
   for line in infile:
     line = line.split()
     for i in range(len(line)):
-      pmat[line_num][i] = float(line[i])
+      pmat[line_num][i+norb] = float(line[i])
+      pmat[i+norb][line_num] = -1.0 * float(line[i])
     line_num += 1
 
   #close file
@@ -154,12 +155,9 @@ def f_propagate(x, Q, w, F):
   F_new = np.zeros((2*norb, 2*norb), dtype=complex)
 
   # initialize the new pairing matrix as old ones
-  for i in range(norb):
-    for j in range(norb, 2*norb):
-      F_new[i][j] = F[i][j-norb]
-  for i in range(norb, 2*norb):
-    for j in range(norb):
-      F_new[i][j] = -1.0 * F[j][i-norb]
+  for i in range(2*norb):
+    for j in range(2*norb):
+      F_new[i][j] = F[i][j]
 
   # propagate pairing matrix
   # loop over auxiliary filed variables
@@ -171,12 +169,12 @@ def f_propagate(x, Q, w, F):
         F_new[r][s] *= np.exp(Q_tilda[r][k] + Q_tilda[s][k])
 
   # convert to smaller dimension 
-  F_new_small = np.zeros((norb, norb), dtype=complex)
-  for r in range(norb):
-    for s in range(norb):
-      F_new_small[r][s] = F_new[r][s+norb]
+  #F_new_small = np.zeros((norb, norb), dtype=complex)
+  #for r in range(norb):
+  #  for s in range(norb):
+  #    F_new_small[r][s] = F_new[r][s+norb]
   # return the new F
-  return F_new_small
+  return F_new
 
 # function that computes the nth order coefficient of a Pfaffian
 def Pf(P, n):
@@ -221,19 +219,36 @@ def ovlp_compute(F1, F2):
    # constructs large, antisymmetric matrix for F1 and F2
   lF = np.zeros((2*norb, 2*norb), dtype=complex)
   rF = np.zeros((2*norb, 2*norb), dtype=complex)
-  for i in range(norb):
-    for j in range(norb, 2*norb):
-      lF[i][j] = F1[i][j-norb]
-      rF[i][j] = F2[i][j-norb]
-  for i in range(norb, 2*norb):
-    for j in range(norb):
-      lF[i][j] = -1.0 * F1[j][i-norb]
-      rF[i][j] = -1.0 * F2[j][i-norb]
+  for i in range(2*norb):
+    for j in range(2*norb):
+      lF[i][j] = F1[i][j]
+      rF[i][j] = F2[i][j]
  
   # compute matrix passed into Pfaffian
-  P = np.dot(lF.transpose().conjugate(), rF)
+  #P = np.dot(lF.transpose().conjugate(), rF)
+  P = np.dot(rF, lF.transpose().conjugate())
 
   return Pf(P, nalpha)
+
+# function that compute the overlap of two AGP
+def ovlp_compute_all(F1, F2):
+  
+   # constructs large, antisymmetric matrix for F1 and F2
+  lF = np.zeros((2*norb, 2*norb), dtype=complex)
+  rF = np.zeros((2*norb, 2*norb), dtype=complex)
+  for i in range(2*norb):
+    for j in range(2*norb):
+      lF[i][j] = F1[i][j]
+      rF[i][j] = F2[i][j]
+ 
+  # compute matrix passed into Pfaffian
+  P = np.dot(rF, lF.transpose().conjugate())
+
+  coeff = []
+  for i in range(nalpha+1):
+    coeff.append(Pf(P,i))
+
+  return coeff
 
 
 # function that computes one-body Green's function between two AGP
@@ -242,20 +257,16 @@ def ob_G(F1, F2, a, b):
   # constructs large, antisymmetric matrix for F1 and F2
   lF = np.zeros((2*norb, 2*norb), dtype=complex)
   rF = np.zeros((2*norb, 2*norb), dtype=complex)
-  for i in range(norb):
-    for j in range(norb, 2*norb):
-      lF[i][j] = F1[i][j-norb]
-      rF[i][j] = F2[i][j-norb]
-  for i in range(norb, 2*norb):
-    for j in range(norb):
-      lF[i][j] = -1.0 * F1[j][i-norb]
-      rF[i][j] = -1.0 * F2[j][i-norb]
+  for i in range(2*norb):
+    for j in range(2*norb):
+      lF[i][j] = F1[i][j]
+      rF[i][j] = F2[i][j]
 
   # compute M matrix 
   M = np.dot(rF,lF.transpose().conjugate())
 
   # compute matrix passed into Pfaffian
-  P = np.dot(lF.transpose().conjugate(), rF)
+  #P = np.dot(lF.transpose().conjugate(), rF)
 
   # return value 
   integral = 0.0+0.0j
@@ -263,7 +274,7 @@ def ob_G(F1, F2, a, b):
   # loop over all degrees less than nalpha
   for i in range(0, nalpha):
     m = nalpha - i - 1
-    integral += (-1.0)**(i) * np.linalg.matrix_power(M, i+1)[b][a] * Pf(P, m)
+    integral += (-1.0)**(i) * np.linalg.matrix_power(M, i+1)[b][a] * Pf(M, m)
 
   return integral
 
@@ -273,20 +284,16 @@ def tb_G(F1, F2, a, b, d, c):
   # constructs large, antisymmetric matrix for F1 and F2
   lF = np.zeros((2*norb, 2*norb), dtype=complex)
   rF = np.zeros((2*norb, 2*norb), dtype=complex)
-  for i in range(norb):
-    for j in range(norb, 2*norb):
-      lF[i][j] = F1[i][j-norb]
-      rF[i][j] = F2[i][j-norb]
-  for i in range(norb, 2*norb):
-    for j in range(norb):
-      lF[i][j] = -1.0 * F1[j][i-norb]
-      rF[i][j] = -1.0 * F2[j][i-norb]
+  for i in range(2*norb):
+    for j in range(2*norb):
+      lF[i][j] = F1[i][j]
+      rF[i][j] = F2[i][j]
 
   # compute M matrix 
   M = np.dot(rF,lF.transpose().conjugate())
 
   # compute matrix passed into Pfaffian
-  P = np.dot(lF.transpose().conjugate(), rF)
+  #P = np.dot(lF.transpose().conjugate(), rF)
 
   # return value 
   integral = 0.0+0.0j
@@ -313,7 +320,7 @@ def tb_G(F1, F2, a, b, d, c):
       # part two
       part2 += (-1.0)**(i+j) * (np.dot(np.linalg.matrix_power(M,i), rF))[c][d] * (np.dot(lF.transpose().conjugate(), np.linalg.matrix_power(M, j)))[b][a]
    
-    integral += ((part1 + part2) * Pf(P, m))
+    integral += ((part1 + part2) * Pf(M, m))
  
   return integral
 
@@ -326,8 +333,10 @@ def ham_compute(F1, F2, oe_int):
   # aa one-electron integral stuff
   for i in range(norb):
     for j in range(norb):
-      ob_eng += oe_int[i][j] * (ob_G(F1, F2, i, j) + ob_G(F1, F2, i+norb, j+norb))
+      if (oe_int[i][j] != 0.0):
+        ob_eng += oe_int[i][j] * (ob_G(F1, F2, i, j) + ob_G(F1, F2, i+norb, j+norb))
 
+  #print ob_eng
   # two-body energy
   tb_eng = 0.0
 
@@ -335,9 +344,85 @@ def ham_compute(F1, F2, oe_int):
   for i in range(norb):
     tb_eng += -1.0 * U * tb_G(F1, F2, i, i+norb, i, i+norb)
 
+  #print tb_eng
   # return matrix element
   return ob_eng + tb_eng
 
+# fast algorithm that computes hamiltonian and overlap matrix elements between two pairing matrix
+def ham_ovlp_compute_fast(F1, F2, oe_int):
+
+  # compute Pf(1+Mt), from zero to Na degrees
+  coeff = ovlp_compute_all(F1,F2)
+
+  # compute M matrix 
+  M = np.dot(F2, F1.transpose().conjugate())
+
+  # compute (-1)^i * M^(i+1)
+  list1 = []
+  for i in range(nalpha):
+    list1.append((-1)**i * np.linalg.matrix_power(M, i+1))
+
+  # compute (-1)^i * M^i*rF
+  list2 = []
+  for i in range(nalpha):
+    list2.append((-1)**i * np.dot(np.linalg.matrix_power(M, i),F2))
+
+  # compute (-1)^i * lF * M^i
+  list3 = []
+  for i in range(nalpha):
+    list3.append((-1)**i * np.dot(F1.transpose().conjugate(),np.linalg.matrix_power(M, i)))
+
+  # one-body contribution
+  ob_eng = 0.0+0.0j
+
+  # two-body contribution
+  tb_eng = 0.0+0.0j
+
+  # loop over first orbital index
+  for i in range(norb):
+    # loop over second orbital index
+    for j in range(norb):
+      integral = 0.0+0.0j
+      # check to see whether the one-body integral is not zero
+      if (oe_int[i][j] != 0.0):
+        # loop over degree in list1 from 1
+        for n in range(1, nalpha+1):
+          # degree in Pf
+          m = nalpha - n
+          # aa part
+          integral += (list1[n-1][j][i]) * coeff[m]
+          # bb part
+          integral += (list1[n-1][j+norb][i+norb]) * coeff[m]
+      ob_eng += oe_int[i][j] * integral
+  
+  #print ob_eng
+  # two-body energy
+  # loop over sites
+  for i in range(norb):
+    # loop over degrees in the non-Pfaffian part, starting from 1
+    for n in range(1, nalpha+1):
+      part1 = 0.0+0.0j
+      part2 = 0.0+0.0j
+      # degree in the Pfaffian part
+      m = nalpha - n
+      # loop over degrees in left part part1
+      for l in range(1,n):
+        s = n - l
+        part1 += (list1[l-1][i+norb][i]*list1[s-1][i][i+norb]-list1[l-1][i+norb][i+norb]*list1[s-1][i][i]) * coeff[m]
+
+      # loop over degrees in left part part2
+      for l in range(1,n+1):
+        s = n - l
+        part2 += (list2[l-1][i+norb][i]*list3[s][i+norb][i]) * coeff[m]
+      #print part2
+      tb_eng += -1.0 * U * (part1+part2)
+
+  #print tb_eng
+  hmat = ob_eng + tb_eng
+
+  # return matrix element
+  return coeff[-1], hmat
+      
 # function that performs Metropolis sampling to compute average energy
 def Metropolis(F0, Nsamp, Q, w, oe_int):
 
@@ -474,12 +559,12 @@ def Metropolis(F0, Nsamp, Q, w, oe_int):
 def energy_grid(F0, exct, Q, w, oe_int):
   
   # current left and right
-  current_lF = np.zeros((norb, norb), dtype=complex)
-  current_rF = np.zeros((norb, norb), dtype=complex)
+  current_lF = np.zeros((2*norb, 2*norb), dtype=complex)
+  current_rF = np.zeros((2*norb, 2*norb), dtype=complex)
 
   # initialize current F
-  for i in range(norb):
-    for j in range(norb):
+  for i in range(2*norb):
+    for j in range(2*norb):
       current_lF[i][j] = F0[i][j]
       current_rF[i][j] = F0[i][j]
 
@@ -507,9 +592,13 @@ def energy_grid(F0, exct, Q, w, oe_int):
 
       # compute numerator
       hmat = ham_compute(F1, F2, oe_int)
+      #print hmat
 
       # compute denominator
       smat = ovlp_compute(F1, F2)
+
+      smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int)
+      #print hmat
 
       # compute weight
       weight = 1.0
@@ -545,11 +634,11 @@ def Rand_Samp(F0, Nsamp, Q, w, oe_int):
   X = []
 
   # current left and right
-  current_lF = np.zeros((norb, norb), dtype=complex)
-  current_rF = np.zeros((norb, norb), dtype=complex)
+  current_lF = np.zeros((2*norb, 2*norb), dtype=complex)
+  current_rF = np.zeros((2*norb, 2*norb), dtype=complex)
 
-  for i in range(norb):
-    for j in range(norb):
+  for i in range(2*norb):
+    for j in range(2*norb):
       current_lF[i][j] = F0[i][j]
       current_rF[i][j] = F0[i][j]
 
@@ -588,6 +677,80 @@ def Rand_Samp(F0, Nsamp, Q, w, oe_int):
 
       # compute denominator
       smat = ovlp_compute(F1, F2)
+      denominator.append(smat)
+      S[l][r] = smat
+      de += smat
+      if (r != l):
+        de += np.conjugate(smat)
+        S[r][l] = np.conjugate(smat)
+
+  w, v = np.linalg.eig(np.dot(np.linalg.pinv(S),H))
+  lowest_eng = w[0].real
+  for eigval in w:
+    if (eigval.real < lowest_eng):
+      lowest_eng = eigval.real
+  print lowest_eng
+  # close output file
+  infile.close()
+
+  # return energy 
+  return nu / de
+
+# function that evaluates energy with random, non-Metropolis sampling (Large fluctuations)
+def Rand_Samp_Fast(F0, Nsamp, Q, w, oe_int):
+
+  # collections of numerator local quantities
+  numerator = []
+
+  # collections of denominator local quantities
+  denominator = []
+
+  # store randomly sampled vectors
+  X = []
+
+  # current left and right
+  current_lF = np.zeros((2*norb, 2*norb), dtype=complex)
+  current_rF = np.zeros((2*norb, 2*norb), dtype=complex)
+
+  for i in range(2*norb):
+    for j in range(2*norb):
+      current_lF[i][j] = F0[i][j]
+      current_rF[i][j] = F0[i][j]
+
+  # open output file
+  infile = open("test.txt", "w")
+
+  # generate auxiliary filed vectors
+  for samp in range(Nsamp):
+    
+    # sample from gaussian distributation
+    x = []
+    for i in range(2*norb):
+     x.append(np.random.normal(0.0,1.0))
+    X.append(x)
+
+  nu = 0.0+0.0j
+  de = 0.0+0.0j
+  S = np.zeros((len(X),len(X)), dtype=complex)
+  H = np.zeros((len(X),len(X)), dtype=complex)
+  # loop over all auxiliary field vectors
+  for l in range(len(X)):
+    for r in range(l, len(X)):
+
+      # propagate initial state
+      F1 = f_propagate(X[l], Q, w, current_lF)
+      F2 = f_propagate(X[r], Q, w, current_rF)
+
+      # compute numerator
+      smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int)
+      numerator.append(hmat)
+      H[l][r] = hmat
+      nu += hmat
+      if (r != l):
+        nu += np.conjugate(hmat)
+        H[r][l] = np.conjugate(hmat)
+
+      # compute denominator
       denominator.append(smat)
       S[l][r] = smat
       de += smat
@@ -857,6 +1020,9 @@ def main():
   elif (method == "Important"):
     nsamp = int(sys.argv[5])
     energy = Importance_Sampling(F, nsamp, Q, pho, oe_int)
+  elif (method == "Fast"):
+    nsamp  = int(sys.argv[5])
+    energy = Rand_Samp_Fast(F, nsamp, Q, pho, oe_int)   
   else:
     print "Unknown Method"
   #Importance_Sampling(F, nsamp, Q, pho, oe_int)
