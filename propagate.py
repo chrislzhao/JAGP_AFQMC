@@ -5,6 +5,7 @@ import random
 from scipy import misc
 import pdb
 import sys
+import time
 
 # number of spatial orbitals
 norb = int(sys.argv[1])
@@ -568,12 +569,6 @@ def energy_grid(F0, exct, Q, w, oe_int):
       current_lF[i][j] = F0[i][j]
       current_rF[i][j] = F0[i][j]
 
-  # collections of numerator local quantities
-  numerator = []
-
-  # collections of denominator local quantities
-  denominator = []
-
   # auxiliary field vectors 
   X = []
 
@@ -582,44 +577,45 @@ def energy_grid(F0, exct, Q, w, oe_int):
   #for level in exct:
   x_sample(exct, X)
 
+  S = np.zeros((len(X),len(X)), dtype=complex)
+  H = np.zeros((len(X),len(X)), dtype=complex)
+
   # loop over all field operators
-  for x in X:
-    for y in X:
+  for l in range(len(X)):
+    for r in range(len(X)):
 
       # propagate F
-      F1 = f_propagate(x, Q, w, current_lF)
-      F2 = f_propagate(y, Q, w, current_rF)
+      F1 = f_propagate(X[l], Q, w, current_lF)
+      F2 = f_propagate(X[r], Q, w, current_rF)
 
-      # compute numerator
-      hmat = ham_compute(F1, F2, oe_int)
-      #print hmat
-
-      # compute denominator
-      smat = ovlp_compute(F1, F2)
-
+      # compute matrix elements
       smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int)
       #print hmat
 
-      # compute weight
-      weight = 1.0
-      for k in range(len(x)):
-        weight *= np.exp(-0.5 * x[k]**2)
-        weight *= np.exp(-0.5 * y[k]**2)
+      # fill in matrix
+      if (r == l):
+        h = hmat.real + 0j
+        s = smat.real + 0j
+        H[l][r] = h
+        S[l][r] = s
+      else:
+        H[l][r] = hmat
+        H[r][l] = np.conjugate(hmat)
+        S[l][r] = smat
+        S[r][l] = np.conjugate(smat)
 
-      # accumulate 
-      numerator.append(weight * hmat)
-      denominator.append(weight * smat)
 
-  # compute average energy
-  nu = 0.0+0,0j
-  de = 0.0+0.0j
+  w, v = np.linalg.eig(np.dot(np.linalg.pinv(S),H))
 
-  for l in range(len(numerator)):
-    nu += numerator[l]
-    de += denominator[l]
+  print w
+  lowest_eng = w[0].real
+  for eigval in w:
+    if (eigval.real < lowest_eng):
+      lowest_eng = eigval.real
+  print lowest_eng
 
   # return energy
-  return nu / de
+  return lowest_eng
 
 # function that evaluates energy with random, non-Metropolis sampling (Large fluctuations)
 def Rand_Samp(F0, Nsamp, Q, w, oe_int):
@@ -707,6 +703,7 @@ def Rand_Samp_Fast(F0, Nsamp, Q, w, oe_int):
 
   # store randomly sampled vectors
   X = []
+  X.append([0.0]*(2*norb))
 
   # current left and right
   current_lF = np.zeros((2*norb, 2*norb), dtype=complex)
@@ -741,24 +738,49 @@ def Rand_Samp_Fast(F0, Nsamp, Q, w, oe_int):
       F1 = f_propagate(X[l], Q, w, current_lF)
       F2 = f_propagate(X[r], Q, w, current_rF)
 
-      # compute numerator
+      # compute matrix elements
       smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int)
-      numerator.append(hmat)
-      H[l][r] = hmat
-      nu += hmat
-      if (r != l):
-        nu += np.conjugate(hmat)
-        H[r][l] = np.conjugate(hmat)
+      #print "smat and hmat compute time is %.7f" % (end-start)
 
-      # compute denominator
-      denominator.append(smat)
-      S[l][r] = smat
-      de += smat
-      if (r != l):
-        de += np.conjugate(smat)
+      # fill in matrix
+      if (r == l):
+        h = hmat.real + 0j
+        s = smat.real + 0j
+        H[l][r] = h
+        S[l][r] = s
+      else:
+        H[l][r] = hmat
+        H[r][l] = np.conjugate(hmat)
+        S[l][r] = smat
         S[r][l] = np.conjugate(smat)
 
+      # for test
+      #if (r != l):
+        #print smat
+      #test_P = np.dot(F2, F1.transpose().conjugate())
+      #test_roots = np.roots(np.poly(test_P))
+      #print test_roots
+
+  #for i in range(len(X)):
+  #  for j in range(len(X)):
+  #    if (H[i][j].imag > 0.0):
+  #      infile.write(" %08.3f+%08.3f " % (H[i][j].real, H[i][j].imag))
+  #    else:
+  #      infile.write(" %08.3f-%08.3f " % (H[i][j].real, abs(H[i][j].imag)))       
+  #  infile.write("\n")
+
+  #infile.write("\n")
+  #for i in range(len(X)):
+  #  for j in range(len(X)):
+  #    if (S[i][j].imag > 0.0):
+  #      infile.write(" %08.3f+%08.3f " % (S[i][j].real, S[i][j].imag))
+  #    else:
+  #      infile.write(" %08.3f-%08.3f " % (S[i][j].real, abs(S[i][j].imag)))
+  #  infile.write("\n")
+  #print H
+  #print S
   w, v = np.linalg.eig(np.dot(np.linalg.pinv(S),H))
+  print w
   lowest_eng = w[0].real
   for eigval in w:
     if (eigval.real < lowest_eng):
@@ -768,7 +790,7 @@ def Rand_Samp_Fast(F0, Nsamp, Q, w, oe_int):
   infile.close()
 
   # return energy 
-  return nu / de
+  return lowest_eng
 
 def Metropolis2(F0, Nsamp, Q, w, oe_int):
 
@@ -975,6 +997,7 @@ def Importance_Sampling(F0, Nsamp, Q, w, oe_int):
 
 def main():
   
+  start = time.time()
   # name of formic same-spin jastrow factor
   jaa_name = "jaa.txt"
 
@@ -1029,6 +1052,8 @@ def main():
 
   # print final energy
   print energy
+  end = time.time()
+  print "total time is %.7f" %(end-start)
 
 if __name__ == "__main__":
   main()
