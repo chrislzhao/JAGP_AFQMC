@@ -6,6 +6,7 @@ from scipy import misc
 import pdb
 import sys
 import time
+from mpi4py import MPI
 
 # number of spatial orbitals
 norb = int(sys.argv[1])
@@ -251,104 +252,6 @@ def ovlp_compute_all(F1, F2):
 
   return coeff
 
-
-# function that computes one-body Green's function between two AGP
-def ob_G(F1, F2, a, b):
-
-  # constructs large, antisymmetric matrix for F1 and F2
-  lF = np.zeros((2*norb, 2*norb), dtype=complex)
-  rF = np.zeros((2*norb, 2*norb), dtype=complex)
-  for i in range(2*norb):
-    for j in range(2*norb):
-      lF[i][j] = F1[i][j]
-      rF[i][j] = F2[i][j]
-
-  # compute M matrix 
-  M = np.dot(rF,lF.transpose().conjugate())
-
-  # compute matrix passed into Pfaffian
-  #P = np.dot(lF.transpose().conjugate(), rF)
-
-  # return value 
-  integral = 0.0+0.0j
-
-  # loop over all degrees less than nalpha
-  for i in range(0, nalpha):
-    m = nalpha - i - 1
-    integral += (-1.0)**(i) * np.linalg.matrix_power(M, i+1)[b][a] * Pf(M, m)
-
-  return integral
-
-# function that computes two-body Green's function between two AGP
-def tb_G(F1, F2, a, b, d, c):
-
-  # constructs large, antisymmetric matrix for F1 and F2
-  lF = np.zeros((2*norb, 2*norb), dtype=complex)
-  rF = np.zeros((2*norb, 2*norb), dtype=complex)
-  for i in range(2*norb):
-    for j in range(2*norb):
-      lF[i][j] = F1[i][j]
-      rF[i][j] = F2[i][j]
-
-  # compute M matrix 
-  M = np.dot(rF,lF.transpose().conjugate())
-
-  # compute matrix passed into Pfaffian
-  #P = np.dot(lF.transpose().conjugate(), rF)
-
-  # return value 
-  integral = 0.0+0.0j
-
-  # loop over all degrees less than nalpha
-  for n in range(1, nalpha+1):
-    m = nalpha - n
-    part1 = 0+0j
-    part2 = 0+0j
-    for i in range(0, n-1):
-
-      # compute j 
-      j = n - i - 2
-
-      if (n > 1):
-        # part one
-        part1 += ((-1.0)**(i+j) * np.linalg.matrix_power(M, i+1)[c][a] * np.linalg.matrix_power(M, j+1)[d][b] - (-1.0)**(i+j) * np.linalg.matrix_power(M, i+1)[c][b] * np.linalg.matrix_power(M, j+1)[d][a])
-    
-    for i in range(0, n):
-
-      # compute j 
-      j = n - i - 1
-
-      # part two
-      part2 += (-1.0)**(i+j) * (np.dot(np.linalg.matrix_power(M,i), rF))[c][d] * (np.dot(lF.transpose().conjugate(), np.linalg.matrix_power(M, j)))[b][a]
-   
-    integral += ((part1 + part2) * Pf(M, m))
- 
-  return integral
-
-# function that return Hamiltonian matrix elements of two AGP
-def ham_compute(F1, F2, oe_int):
-  
-  # one-body energy
-  ob_eng = 0.0
-
-  # aa one-electron integral stuff
-  for i in range(norb):
-    for j in range(norb):
-      if (oe_int[i][j] != 0.0):
-        ob_eng += oe_int[i][j] * (ob_G(F1, F2, i, j) + ob_G(F1, F2, i+norb, j+norb))
-
-  #print ob_eng
-  # two-body energy
-  tb_eng = 0.0
-
-  # two-electron energy calculation
-  for i in range(norb):
-    tb_eng += -1.0 * U * tb_G(F1, F2, i, i+norb, i, i+norb)
-
-  #print tb_eng
-  # return matrix element
-  return ob_eng + tb_eng
-
 # fast algorithm that computes hamiltonian and overlap matrix elements between two pairing matrix
 def ham_ovlp_compute_fast(F1, F2, oe_int):
 
@@ -424,138 +327,6 @@ def ham_ovlp_compute_fast(F1, F2, oe_int):
   # return matrix element
   return coeff[-1], hmat
       
-# function that performs Metropolis sampling to compute average energy
-def Metropolis(F0, Nsamp, Q, w, oe_int):
-
-  # a set of randomly generated auxiliary field vectors
-  X = []
-
-  # collections of numerator local quantities
-  numerator = []
-
-  # collections of denominator local quantities
-  denominator = []
-
-  # current left and right
-  current_lF = np.zeros((norb, norb), dtype=complex)
-  current_rF = np.zeros((norb, norb), dtype=complex)
-
-  # initialize current F
-  for i in range(norb):
-    for j in range(norb):
-      current_lF[i][j] = F0[i][j]
-      current_rF[i][j] = F0[i][j]
-
-  # open output file
-  infile = open("test.txt", "w")
-
-  # initial field vector
-  x1 = [0.0]*(norb*2)
-  x2 = [0.0]*(norb*2)
-
-  # generate Markov chain and collect data
-  for samp in range(Nsamp):
-    
-    accept = False
-
-    # draw auxiliary field operators
-    if (samp > 0):
-
-      # field index to change
-      index1 = np.random.randint(0,norb*2)
-      index2 = np.random.randint(0,norb*2)
-
-      # uniform number
-      rand1 = (np.random.uniform(-2.0, 2.0))
-      rand2 = (np.random.uniform(-2.0, 2.0))
-
-      # current P1
-      P_curr1 = np.exp(-0.5 * x1[index1]**2)
-
-      # proposed P1
-      P_prop1 = np.exp(-0.5 * rand1**2)
-
-      # accept if prob increases
-      if ( P_prop1 / P_curr1 >= 1.0):
-        x1[index1] = rand1
-        accept = True
-      # accept with prob
-      else:
-        comp = np.random.uniform(0,1)
-        if ( P_prop1 / P_curr1 > comp ):
-          x1[index1] = rand1
-          accept = True
-        else:
-          accept = False
-
-      # current P2
-      P_curr2 = np.exp(-0.5 * x2[index2]**2)
-
-      # proposed P2
-      P_prop2 = np.exp(-0.5 * rand2**2)
-
-      # accept if prob incereases
-      if ( P_prop2 / P_curr2 >= 1.0):
-        x2[index2] = rand2
-        accept = True
-      # accept with prob
-      else:
-        comp = np.random.uniform(0,1)
-        if ( P_prop2 / P_curr2 > comp ):
-          x1[index2] = rand2
-          accept = True
-        else:
-          accept = False
-
-    # weight factor
-    exp1 = 1.0 
-    exp2 = 1.0
-    for i in range(norb*2):
-      exp1 *= np.exp(-0.5 * x1[i]**2)
-      exp2 *= np.exp(-0.5 * x2[i]**2) 
-    exp_tot = exp1*exp2
-
-    # write weight factor to file
-    infile.write("%12.12f\n" % exp_tot)
-
-    # propagate initial state
-    F1 = f_propagate(x1, Q, w, current_lF)
-    F2 = f_propagate(x2, Q, w, current_rF)
-
-    # compute the norm of F2 and F1
-    #norm1 = np.sqrt(ovlp_compute(F1,F1))
-    #norm2 = np.sqrt(ovlp_compute(F2,F2))
-    #norm1 = np.power(norm1, 1.0/nalpha)
-    #norm2 = np.power(norm2, 1.0/nalpha)
-    #for i in range(norb):
-    #  for j in range(norb):
-    #    F1[i][j] /= norm1
-    #    F2[i][j] /= norm2
-
-    # compute numerator
-    hmat = ham_compute(F1, F2, oe_int)
-    numerator.append(hmat)
-    infile.write( "%12.12f  %12.12f\n" % (hmat.real, hmat.imag))
-
-    # compute denominator
-    smat = ovlp_compute(F1, F2)
-    denominator.append(smat)
-    infile.write( "%12.12f  %12.12f\n" % (smat.real, smat.imag))
-
-  # close output file
-  infile.close()
-
-  # accumulate global quantities
-  nu = 0.0+0.0j
-  dn = 0.0+0.0j
-
-  for i in range(len(numerator)):
-    nu += numerator[i]
-    dn += denominator[i]
-
-  # return energy 
-  return nu / dn
-
 # function that evaluate energy on a grid
 def energy_grid(F0, exct, Q, w, oe_int):
   
@@ -616,81 +387,6 @@ def energy_grid(F0, exct, Q, w, oe_int):
 
   # return energy
   return lowest_eng
-
-# function that evaluates energy with random, non-Metropolis sampling (Large fluctuations)
-def Rand_Samp(F0, Nsamp, Q, w, oe_int):
-
-  # collections of numerator local quantities
-  numerator = []
-
-  # collections of denominator local quantities
-  denominator = []
-
-  # store randomly sampled vectors
-  X = []
-
-  # current left and right
-  current_lF = np.zeros((2*norb, 2*norb), dtype=complex)
-  current_rF = np.zeros((2*norb, 2*norb), dtype=complex)
-
-  for i in range(2*norb):
-    for j in range(2*norb):
-      current_lF[i][j] = F0[i][j]
-      current_rF[i][j] = F0[i][j]
-
-  # open output file
-  infile = open("test.txt", "w")
-
-  # generate auxiliary filed vectors
-  for samp in range(Nsamp):
-    
-    # sample from gaussian distributation
-    x = []
-    for i in range(2*norb):
-     x.append(np.random.normal(0.0,1.0))
-    X.append(x)
-
-  nu = 0.0+0.0j
-  de = 0.0+0.0j
-  S = np.zeros((len(X),len(X)), dtype=complex)
-  H = np.zeros((len(X),len(X)), dtype=complex)
-  # loop over all auxiliary field vectors
-  for l in range(len(X)):
-    for r in range(l, len(X)):
-
-      # propagate initial state
-      F1 = f_propagate(X[l], Q, w, current_lF)
-      F2 = f_propagate(X[r], Q, w, current_rF)
-
-      # compute numerator
-      hmat = ham_compute(F1, F2, oe_int)
-      numerator.append(hmat)
-      H[l][r] = hmat
-      nu += hmat
-      if (r != l):
-        nu += np.conjugate(hmat)
-        H[r][l] = np.conjugate(hmat)
-
-      # compute denominator
-      smat = ovlp_compute(F1, F2)
-      denominator.append(smat)
-      S[l][r] = smat
-      de += smat
-      if (r != l):
-        de += np.conjugate(smat)
-        S[r][l] = np.conjugate(smat)
-
-  w, v = np.linalg.eig(np.dot(np.linalg.pinv(S),H))
-  lowest_eng = w[0].real
-  for eigval in w:
-    if (eigval.real < lowest_eng):
-      lowest_eng = eigval.real
-  print lowest_eng
-  # close output file
-  infile.close()
-
-  # return energy 
-  return nu / de
 
 # function that evaluates energy with random, non-Metropolis sampling (Large fluctuations)
 def Rand_Samp_Fast(F0, Nsamp, Q, w, oe_int):
@@ -792,99 +488,17 @@ def Rand_Samp_Fast(F0, Nsamp, Q, w, oe_int):
   # return energy 
   return lowest_eng
 
-def Metropolis2(F0, Nsamp, Q, w, oe_int):
-
-  # a set of randomly generated auxiliary field vectors
-  X = []
-
-  # collections of numerator local quantities
-  numerator = []
-
-  # collections of denominator local quantities
-  denominator = []
-
-  # current left and right
-  current_lF = np.zeros((norb, norb), dtype=complex)
-  current_rF = np.zeros((norb, norb), dtype=complex)
-
-  # initialize current F
-  for i in range(norb):
-    for j in range(norb):
-      current_lF[i][j] = F0[i][j]
-      current_rF[i][j] = F0[i][j]
-
-  # open output file
-  infile = open("test.txt", "w")
-
-  # initial field vector
-  x = [0.0]*(norb*2)
-
-  # generate Markov chain and collect data
-  for samp in range(Nsamp):
-    
-    accept = False
-
-    # draw auxiliary field operators
-    if (samp > 0):
-
-      # field index to change
-      index = np.random.randint(0,norb*2)
-
-      # uniform number
-      rand = (np.random.uniform(-2.0, 2.0))
-
-      # current P1
-      P_curr = np.exp(-0.5 * x[index]**2)
-
-      # proposed P1
-      P_prop = np.exp(-0.5 * rand**2)
-
-      # accept if prob increases
-      if ( P_prop / P_curr >= 1.0):
-        x[index] = rand
-        accept = True
-      # accept with prob
-      else:
-        comp = np.random.uniform(0,1)
-        if ( P_prop / P_curr > comp ):
-          x[index] = rand
-          accept = True
-        else:
-          accept = False
-
-      x_add = [0.0]*(norb*2)
-      for i in range(len(x)):
-        x_add[i] = x[i]
-      X.append(x_add)
-
-  nu = 0.0+0.0j
-  dn = 0.0+0.0j
-  # loop over all field vectors
-  for xl in X:
-    for xr in X:
-
-      # propagate initial state
-      F1 = f_propagate(xl, Q, w, current_lF)
-      F2 = f_propagate(xr, Q, w, current_rF)
-
-      # compute numerator
-      hmat = ham_compute(F1, F2, oe_int)
-      numerator.append(hmat)
-      nu += hmat
-
-      # compute denominator
-      smat = ovlp_compute(F1, F2)
-      denominator.append(smat)
-      dn += smat
-
-  # close output file
-  infile.close()
-
-  # return energy 
-  return nu / dn
-
 # function that evaluates energy with random, non-Metropolis sampling (Large fluctuations)
-def Importance_Sampling(F0, Nsamp, Q, w, oe_int):
+def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
+
+  # get mpi comm
+  comm = MPI.COMM_WORLD
+
+  # get rank number 
+  rank = comm.Get_rank()
+
+  # total number of ranks 
+  nprocs = comm.Get_size()
 
   # collections of numerator local quantities
   numerator = []
@@ -892,112 +506,116 @@ def Importance_Sampling(F0, Nsamp, Q, w, oe_int):
   # collections of denominator local quantities
   denominator = []
 
-  # store importance sampled vectors
-  X_importance = []
-
-  # store vectors in this sample
-  X_samp = []
-
-  # hamiltonian matrix 
-  H = np.zeros((Nsamp, Nsamp), dtype=complex)
-
-  # overlap matrix 
-  S = np.zeros((Nsamp, Nsamp), dtype=complex)
+  # store randomly sampled vectors
+  X = []
+  X.append([0.0]*(2*norb))
 
   # current left and right
-  current_lF = np.zeros((norb, norb), dtype=complex)
-  current_rF = np.zeros((norb, norb), dtype=complex)
+  current_lF = np.zeros((2*norb, 2*norb), dtype=complex)
+  current_rF = np.zeros((2*norb, 2*norb), dtype=complex)
 
-  for i in range(norb):
-    for j in range(norb):
+  for i in range(2*norb):
+    for j in range(2*norb):
       current_lF[i][j] = F0[i][j]
       current_rF[i][j] = F0[i][j]
 
-  for iteration in range(10):
-
-    # generate auxiliary filed vectors
+  # generate auxiliary filed vectors on root process
+  if (rank == 0):
     for samp in range(Nsamp):
     
-      # generate auxiliary field vectors based on Gaussian distribution
+      # sample from gaussian distributation
       x = []
-      for i in range(norb*2):
+      for i in range(2*norb):
         x.append(np.random.normal(0.0,1.0))
-      X_samp.append(x)
+      X.append(x)
+  
+  # broadcast these sampled field vectors
+  X = comm.bcast(X, root=0)
+
+  nu = 0.0+0.0j
+  de = 0.0+0.0j
+  S = np.zeros((len(X),len(X)), dtype=complex)
+  H = np.zeros((len(X),len(X)), dtype=complex)
+
+  H_tot = np.zeros((len(X),len(X)), dtype=complex)
+  S_tot = np.zeros((len(X),len(X)), dtype=complex)
+
+  # generate all possible upper-triangular pairs
+  pairs = []
+  for l in range(len(X)):
+    for r in range(l, len(X)):
+      pairs.append([l,r])
+
+  # total elements that need to be computed 
+  total_num_ele = len(pairs)
+
+  # number of elements per process
+  num_per_proc = total_num_ele / nprocs
+
+  # number of elements left 
+  num_left = total_num_ele % nprocs
+
+  # starting index 
+  start_ind = rank * num_per_proc
+
+  # end index 
+  end_ind = start_ind + num_per_proc
+  if (rank == (nprocs-1)):
+    end_ind += num_left
+
+  #print "rank is %d, starting index is %d, end index is %d" %(rank, start_ind, end_ind)
+  # loop over all pairs
+  for index in range(start_ind, end_ind):
+
+    # propagate initial state
+    F1 = f_propagate(X[pairs[index][0]], Q, w, current_lF)
+    F2 = f_propagate(X[pairs[index][1]], Q, w, current_rF)
 
     # compute matrix elements
-    for i in range(len(X_samp)):
-      for j in range(i, len(X_samp)):
+    smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int)
 
-        #print "%i %i" % (i, j)
-        # propagate initial state
-        F1 = f_propagate(X_samp[i], Q, w, current_lF)
-        F2 = f_propagate(X_samp[j], Q, w, current_rF)
+    # fill in matrix
+    if (pairs[index][0] == pairs[index][1]):
+      h = hmat.real + 0j
+      s = smat.real + 0j
+      H[pairs[index][0]][pairs[index][1]] = h
+      S[pairs[index][0]][pairs[index][1]] = s
+    else:
+      H[pairs[index][0]][pairs[index][1]] = hmat
+      H[pairs[index][1]][pairs[index][0]] = np.conjugate(hmat)
+      S[pairs[index][0]][pairs[index][1]] = smat
+      S[pairs[index][1]][pairs[index][0]] = np.conjugate(smat)
 
-        # compute H
-        H[i][j] = ham_compute(F1, F2, oe_int)
-        if (i != j):
-          H[j][i] = np.conjugate(H[i][j])
+  # reduce to root process
+  H_tot = comm.reduce(H, op=MPI.SUM, root=0)
+  S_tot = comm.reduce(S, op=MPI.SUM, root=0)
 
-        # compute S
-        S[i][j] = ovlp_compute(F1, F2)
-        if (i != j):
-          S[j][i] = np.conjugate(S[i][j])
+  # diagonalize H on root process
+  lowest_eng = 0.0
+  if (rank == 0):
+    w, v = np.linalg.eig(np.dot(np.linalg.pinv(S_tot),H_tot))
 
-    # diagonalize this matrix
-    eigval, eigvec = np.linalg.eig(np.dot(np.linalg.pinv(S), H))
-    print eigval
+    # print eigenvalues
+    print w
 
-    # find the lowest eigenvalue
-    lowest_eng = eigval[0].real
-    lowest_ind = 0
-    for i in range(len(eigval)):
-      if (eigval[i] < lowest_eng):
-        lowest_eng = eigval[i].real
-        lowest_ind = i
+    # find the lowest eigenvalues
+    lowest_eng = w[0].real
+    for eigval in w:
+      if (eigval.real < lowest_eng):
+        lowest_eng = eigval.real
+ 
+    # print the lowest eigenvalues
+    print lowest_eng
 
-    # print out 
-    print "iter = %i, energy = %12.12f" % (iteration, lowest_eng)
+  # broadcast the lowest energy
+  lowest_eng = comm.bcast(lowest_eng, root=0)
 
-    # add the most important x
-    for ind in range(len(X_samp)):
-      if (abs(eigvec[ind][lowest_ind]) > 0.1):
-        X_importance.append(X_samp[ind])
-
-    # clear X_sample
-    del X_samp[:]
-
-  Hf = np.zeros((len(X_importance), len(X_importance)), dtype=complex)
-  Sf = np.zeros((len(X_importance), len(X_importance)), dtype=complex)
-  # after all iterations are done, compute energy
-  for i in range(len(X_importance)):
-    for j in range(i, len(X_importance)):
-      
-      # propagate initial state
-      F1 = f_propagate(X_importance[i], Q, w, current_lF)
-      F2 = f_propagate(X_importance[j], Q, w, current_rF)
-
-      # compute H
-      Hf[i][j] = ham_compute(F1, F2, oe_int)
-      if (i != j):
-        Hf[j][i] = np.conjugate(Hf[i][j])
-
-      # compute S
-      Sf[i][j] = ovlp_compute(F1, F2)
-      if (i != j):
-        Sf[j][i] = np.conjugate(Sf[i][j])
-
-  # diagonalize this matrix
-  eigval, eigvec = np.linalg.eig(np.dot(np.linalg.pinv(Sf), Hf))
-  #for i in range(len(X_importance)):
-  #  for j in range(len(X_importance)):
-  #    print "%5.5f + %5.5f i  " % (Sf[i][j].real, Sf[i][j].imag),
-  #  print "\n"
-  #eigval, eigvec = np.linalg.eig(Hf)
-  print eigval
+  # return energy 
+  return lowest_eng
 
 def main():
   
-  start = time.time()
+  #start = time.time()
   # name of formic same-spin jastrow factor
   jaa_name = "jaa.txt"
 
@@ -1028,32 +646,22 @@ def main():
 
   # propagate initial AGP and compute energy
   method = sys.argv[4]
-  if (method == "MC"):
-    nsamp  = int(sys.argv[5])
-    energy = Metropolis2(F, nsamp, Q, pho, oe_int)
-  elif (method == "Rand_Samp"):
-    nsamp  = int(sys.argv[5])
-    energy = Rand_Samp(F, nsamp, Q, pho, oe_int)
-  elif (method == "Grid"):
+  if (method == "Grid"):
     exct   = int(sys.argv[5])
     energy = energy_grid(F, exct, Q, pho, oe_int)
-  elif (method == "Non_Var"):
-    nsamp = int(sys.argv[5])
-    energy = Metropolis(F, nsamp, Q, pho, oe_int)
-  elif (method == "Important"):
-    nsamp = int(sys.argv[5])
-    energy = Importance_Sampling(F, nsamp, Q, pho, oe_int)
   elif (method == "Fast"):
     nsamp  = int(sys.argv[5])
     energy = Rand_Samp_Fast(F, nsamp, Q, pho, oe_int)   
+  elif (method == "Parallel"):
+    nsamp  = int(sys.argv[5])
+    energy = Parallel_Fast(F, nsamp, Q, pho, oe_int)   
   else:
     print "Unknown Method"
-  #Importance_Sampling(F, nsamp, Q, pho, oe_int)
 
   # print final energy
-  print energy
-  end = time.time()
-  print "total time is %.7f" %(end-start)
+  #print energy
+  #end = time.time()
+  #print "total time is %.7f" %(end-start)
 
 if __name__ == "__main__":
   main()
