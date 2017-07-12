@@ -182,16 +182,32 @@ def f_propagate(x, Q, w, F):
 def Pf(P, n):
  
  # first compute the root of characteristic polynomial of P
- roots = np.roots(np.poly(P))
+ #roots = np.roots(np.poly(P))
 
- # find unique roots
+ roots = np.linalg.eigvals(P)
+
+ # find unique roots 
  unique_roots = []
- for i in range(0, len(roots), 2):
+ #for i in range(0, len(roots), 2):
+ #  unique_roots.append(roots[i])
+
+ for i in range(0, norb):
    unique_roots.append(roots[i])
+ #for i in range(len(roots)):
+ #  #same_sign = False
+ #  same_magn = False
+ #  for j in range(len(unique_roots)):
+ #    #if ( (roots[i].real * unique[j].real) < 0.0 or (roots[i].imag * unique[j].imag) < 0.0):
+ #    #  same_sign = False
+ #    if ( abs(roots[i].real - unique_roots[j].real) < 1e-6 and abs(roots[i].imag - unique_roots[j].imag) < 1e-6):
+ #      same_magn = True
+ #  if (not same_magn):
+ #    unique_roots.append(roots[i])
+       
  
  # check too see if number of unique roots is equal to the number of spatial oritals
  if ( len(unique_roots) != norb):
-   print "Bad number of roots find!"
+   print "Bad number of roots %d find!" % len(unique_roots)
  
  # compute the coefficient of nth order
  # first find all possible combinations
@@ -245,11 +261,13 @@ def ovlp_compute_all(F1, F2):
  
   # compute matrix passed into Pfaffian
   P = np.dot(rF, lF.transpose().conjugate())
+  #print P
 
   coeff = []
   for i in range(nalpha+1):
     coeff.append(Pf(P,i))
 
+  #print coeff
   return coeff
 
 # fast algorithm that computes hamiltonian and overlap matrix elements between two pairing matrix
@@ -436,7 +454,6 @@ def Rand_Samp_Fast(F0, Nsamp, Q, w, oe_int):
 
       # compute matrix elements
       smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int)
-      #print "smat and hmat compute time is %.7f" % (end-start)
 
       # fill in matrix
       if (r == l):
@@ -444,18 +461,12 @@ def Rand_Samp_Fast(F0, Nsamp, Q, w, oe_int):
         s = smat.real + 0j
         H[l][r] = h
         S[l][r] = s
+
       else:
         H[l][r] = hmat
         H[r][l] = np.conjugate(hmat)
         S[l][r] = smat
         S[r][l] = np.conjugate(smat)
-
-      # for test
-      #if (r != l):
-        #print smat
-      #test_P = np.dot(F2, F1.transpose().conjugate())
-      #test_roots = np.roots(np.poly(test_P))
-      #print test_roots
 
   #for i in range(len(X)):
   #  for j in range(len(X)):
@@ -475,7 +486,7 @@ def Rand_Samp_Fast(F0, Nsamp, Q, w, oe_int):
   #  infile.write("\n")
   #print H
   #print S
-  w, v = np.linalg.eig(np.dot(np.linalg.pinv(S),H))
+  w, v = np.linalg.eig(np.dot(np.linalg.inv(S),H))
   print w
   lowest_eng = w[0].real
   for eigval in w:
