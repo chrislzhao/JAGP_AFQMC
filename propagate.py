@@ -604,8 +604,8 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
       D[i][i] = 1.0 / np.sqrt(S_eff[i][i])
 
     # change to a normalized basis
-    H_eff = np.dot(D, np.dot(H_eff, D))
-    S_eff = np.dot(D, np.dot(S_eff, D))
+    #H_eff = np.dot(D, np.dot(H_eff, D))
+    #S_eff = np.dot(D, np.dot(S_eff, D))
 
     # diagonalize the effective Hamiltonian
     w, v = np.linalg.eig(np.dot(np.linalg.pinv(S_eff),H_eff))
@@ -626,64 +626,64 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
         infile.write("\n")
 
         # truncate the eigenvectors based on its magnitude and compute energy
-        nu = 0.0+0.0j
-        de = 0.0+0.0j
-        # no truncation
-        for l in range(len(good_index)):
-          for r in range(l, len(good_index)):
-            if (abs(v[l][i]) >= 0.0001 and abs(v[r][i]) >= 0.0001):
-              nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
-              de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
-              if (l != r):
-                nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
-                de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
-        eng = nu / de
-        infile.write("truncation = 0.0001 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
+        #nu = 0.0+0.0j
+        #de = 0.0+0.0j
+        ## no truncation
+        #for l in range(len(good_index)):
+        #  for r in range(l, len(good_index)):
+        #    if (abs(v[l][i]) >= 0.0001 and abs(v[r][i]) >= 0.0001):
+        #      nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
+        #      de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
+        #      if (l != r):
+        #        nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
+        #        de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
+        #eng = nu / de
+        #infile.write("truncation = 0.0001 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
 
-        # truncate the eigenvectors based on its magnitude and compute energy
-        nu = 0.0+0.0j
-        de = 0.0+0.0j
-        # no truncation
-        for l in range(len(good_index)):
-          for r in range(l, len(good_index)):
-            if (abs(v[l][i]) >= 0.001 and abs(v[r][i]) >= 0.001):
-              nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
-              de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
-              if (l != r):
-                nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
-                de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
-        eng = nu / de
-        infile.write("truncation = 0.0010 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
+        ## truncate the eigenvectors based on its magnitude and compute energy
+        #nu = 0.0+0.0j
+        #de = 0.0+0.0j
+        ## no truncation
+        #for l in range(len(good_index)):
+        #  for r in range(l, len(good_index)):
+        #    if (abs(v[l][i]) >= 0.001 and abs(v[r][i]) >= 0.001):
+        #      nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
+        #      de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
+        #      if (l != r):
+        #        nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
+        #        de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
+        #eng = nu / de
+        #infile.write("truncation = 0.0010 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
 
-        # truncate the eigenvectors based on its magnitude and compute energy
-        nu = 0.0+0.0j
-        de = 0.0+0.0j
-        # no truncation
-        for l in range(len(good_index)):
-          for r in range(l, len(good_index)):
-            if (abs(v[l][i]) >= 0.01 and abs(v[r][i]) >= 0.01):
-              nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
-              de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
-              if (l != r):
-                nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
-                de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
-        eng = nu / de
-        infile.write("truncation = 0.0100 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
+        ## truncate the eigenvectors based on its magnitude and compute energy
+        #nu = 0.0+0.0j
+        #de = 0.0+0.0j
+        ## no truncation
+        #for l in range(len(good_index)):
+        #  for r in range(l, len(good_index)):
+        #    if (abs(v[l][i]) >= 0.01 and abs(v[r][i]) >= 0.01):
+        #      nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
+        #      de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
+        #      if (l != r):
+        #        nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
+        #        de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
+        #eng = nu / de
+        #infile.write("truncation = 0.0100 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
 
-        # truncate the eigenvectors based on its magnitude and compute energy
-        nu = 0.0+0.0j
-        de = 0.0+0.0j
-        # no truncation
-        for l in range(len(good_index)):
-          for r in range(l, len(good_index)):
-            if (abs(v[l][i]) >= 0.1 and abs(v[r][i]) >= 0.1):
-              nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
-              de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
-              if (l != r):
-                nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
-                de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
-        eng = nu / de
-        infile.write("truncation = 0.1000 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
+        ## truncate the eigenvectors based on its magnitude and compute energy
+        #nu = 0.0+0.0j
+        #de = 0.0+0.0j
+        ## no truncation
+        #for l in range(len(good_index)):
+        #  for r in range(l, len(good_index)):
+        #    if (abs(v[l][i]) >= 0.1 and abs(v[r][i]) >= 0.1):
+        #      nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
+        #      de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
+        #      if (l != r):
+        #        nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
+        #        de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
+        #eng = nu / de
+        #infile.write("truncation = 0.1000 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
 
     # close eigenvector file
     infile.close()
@@ -702,6 +702,56 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
 
   # return energy 
   return lowest_eng
+
+def Output(F0, Q, w, oe_int):
+
+  # store randomly sampled vectors
+  X = []
+
+  # current left and right
+  current_F = np.zeros((2*norb, 2*norb), dtype=complex)
+
+  for i in range(2*norb):
+    for j in range(2*norb):
+      current_F[i][j] = F0[i][j]
+
+  # generate auxiliary filed vectors on root process
+
+  # read in x vector
+  infile = open("sampled_x.txt", "r")
+
+  # fill in X
+  for vector in infile:
+    x = []
+    # split it
+    vector = vector.split()
+    for i in range(len(vector)):
+      x.append(float(vector[i]))
+    X.append(x)
+
+  # close file 
+  infile.close()
+  
+  # open file that store new F 
+  outfile = open("AGP_expansion.txt", "w")
+
+  # loop over all vectors
+  for i in range(len(X)):
+
+    # propagate initial state
+    new_F = f_propagate(X[i], Q, w, current_F)
+
+    # write this F to file (only prints out the upper right corner)
+    outfile.write("AGP index %5d \n" % i)
+    for row in range(norb):
+      for col in range(norb, 2*norb):
+        outfile.write("%10.7f + %10.7f j  " % (new_F[row][col].real, new_F[row][col].imag))
+      outfile.write("\n")
+
+    outfile.write("\n")
+  
+  # close file
+  outfile.close()
 
 def main():
   
@@ -742,6 +792,8 @@ def main():
   elif (method == "Parallel_test"):
     nsamp  = int(sys.argv[5])
     energy = Parallel_Fast(F, nsamp, Q, pho, oe_int)   
+  elif (method == "Print"):
+    Output(F, Q, pho, oe_int) 
   else:
     print "Unknown Method"
 
