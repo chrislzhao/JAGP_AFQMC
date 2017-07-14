@@ -481,13 +481,28 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
 
   # generate auxiliary filed vectors on root process
   if (rank == 0):
+
+    # file to store x vector
+    infile = open("sampled_x.txt", "w")
+
+    # add zero vector
+    for i in range(2*norb):
+      infile.write("%.7f" % X[0][i])
+    infile.write("\n")
+
+    # sample x
     for samp in range(Nsamp):
     
       # sample from gaussian distributation
       x = []
       for i in range(2*norb):
         x.append(np.random.normal(0.0,1.0))
+        infile.write("%.7f  " % x[i])
       X.append(x)
+      infile.write("\n")
+
+    # close file 
+    infile.close()
   
   # broadcast these sampled field vectors
   X = comm.bcast(X, root=0)
@@ -564,6 +579,7 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
     bad_index = []
     good_index = []
     for i in range(len(X)):
+      #print H_tot[i][i] / S_tot[i][i]
       if ( (H_tot[i][i]/S_tot[i][i]).real < (H_tot[0][0]/S_tot[0][0]).real ):
         num_bad += 1
         bad_index.append(i)
@@ -585,8 +601,23 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
     # diagonalize the effective Hamiltonian
     w, v = np.linalg.eig(np.dot(np.linalg.pinv(S_eff),H_eff))
 
+    # file to print out eigenvectors
+    infile = open("eigvecs.txt", "w")
+
     # print eigenvalues
-    print w
+    for i in range(len(w)):
+      if (w[i].real < (H_eff[0][0]/S_eff[0][0]).real):
+
+        # store eigenvalues
+        infile.write("energy is %.7f + %.7f j\n" % (w[i].real, w[i].imag))
+
+        # store eigenvectors
+        for j in range(len(good_index)):
+          infile.write("%d  %.7f + %.7f j\n" % (good_index[j], v[j][i].real, v[j][i].imag))
+        infile.write("\n")
+
+    # close eigenvector file
+    infile.close()
 
     # find the lowest eigenvalues
     lowest_eng = w[0].real
