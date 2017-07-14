@@ -598,6 +598,15 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
         j += 1
       i += 1
 
+    # matrix to normalize 
+    D = np.zeros((len(X)-num_bad, len(X)-num_bad))
+    for i in range(len(X)-num_bad):
+      D[i][i] = 1.0 / np.sqrt(S_eff[i][i])
+
+    # change to a normalized basis
+    H_eff = np.dot(D, np.dot(H_eff, D))
+    S_eff = np.dot(D, np.dot(S_eff, D))
+
     # diagonalize the effective Hamiltonian
     w, v = np.linalg.eig(np.dot(np.linalg.pinv(S_eff),H_eff))
 
