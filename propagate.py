@@ -17,6 +17,14 @@ nalpha = int(sys.argv[2])
 # Hubbard on-site repulsion
 U = float(sys.argv[3])
 
+def filter_lines(f, stride):
+    for i, line in enumerate(f):
+        #print i, i%stride, (i+stride)%stride
+        # Skip the first and the last line of each AGP block
+        if i%stride and (i+stride)%stride:
+            #print i
+            yield line
+
 # function that reads in formic's output Jastrow factor
 def read_jastrow(file_name):
 
@@ -625,66 +633,6 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
           infile.write("%5d  %10.7f + %10.7f j\n" % (good_index[j], v[j][i].real, v[j][i].imag))
         infile.write("\n")
 
-        # truncate the eigenvectors based on its magnitude and compute energy
-        #nu = 0.0+0.0j
-        #de = 0.0+0.0j
-        ## no truncation
-        #for l in range(len(good_index)):
-        #  for r in range(l, len(good_index)):
-        #    if (abs(v[l][i]) >= 0.0001 and abs(v[r][i]) >= 0.0001):
-        #      nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
-        #      de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
-        #      if (l != r):
-        #        nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
-        #        de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
-        #eng = nu / de
-        #infile.write("truncation = 0.0001 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
-
-        ## truncate the eigenvectors based on its magnitude and compute energy
-        #nu = 0.0+0.0j
-        #de = 0.0+0.0j
-        ## no truncation
-        #for l in range(len(good_index)):
-        #  for r in range(l, len(good_index)):
-        #    if (abs(v[l][i]) >= 0.001 and abs(v[r][i]) >= 0.001):
-        #      nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
-        #      de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
-        #      if (l != r):
-        #        nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
-        #        de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
-        #eng = nu / de
-        #infile.write("truncation = 0.0010 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
-
-        ## truncate the eigenvectors based on its magnitude and compute energy
-        #nu = 0.0+0.0j
-        #de = 0.0+0.0j
-        ## no truncation
-        #for l in range(len(good_index)):
-        #  for r in range(l, len(good_index)):
-        #    if (abs(v[l][i]) >= 0.01 and abs(v[r][i]) >= 0.01):
-        #      nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
-        #      de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
-        #      if (l != r):
-        #        nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
-        #        de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
-        #eng = nu / de
-        #infile.write("truncation = 0.0100 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
-
-        ## truncate the eigenvectors based on its magnitude and compute energy
-        #nu = 0.0+0.0j
-        #de = 0.0+0.0j
-        ## no truncation
-        #for l in range(len(good_index)):
-        #  for r in range(l, len(good_index)):
-        #    if (abs(v[l][i]) >= 0.1 and abs(v[r][i]) >= 0.1):
-        #      nu += np.conjugate(v[l][i]) * v[r][i] * H_eff[l][r]
-        #      de += np.conjugate(v[l][i]) * v[r][i] * S_eff[l][r]
-        #      if (l != r):
-        #        nu += np.conjugate(v[r][i]) * v[l][i] * H_eff[r][l]
-        #        de += np.conjugate(v[r][i]) * v[l][i] * S_eff[r][l]
-        #eng = nu / de
-        #infile.write("truncation = 0.1000 energy = %10.7f + %10.7f j\n" % (eng.real, eng.imag))
-
     # close eigenvector file
     infile.close()
 
@@ -695,6 +643,140 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
         lowest_eng = eigval.real
  
     # print the lowest eigenvalues
+    print lowest_eng
+
+  # broadcast the lowest energy
+  lowest_eng = comm.bcast(lowest_eng, root=0)
+
+  # return energy 
+  return lowest_eng
+
+def Read_In_Compute(oe_int, nsamp):
+
+  # get mpi comm
+  comm = MPI.COMM_WORLD
+
+  # get rank number 
+  rank = comm.Get_rank()
+
+  # total number of ranks 
+  nprocs = comm.Get_size()
+
+  agp = "AGP_expansion.txt"
+
+  S = np.zeros((nsamp+1,nsamp+1), dtype=complex)
+  H = np.zeros((nsamp+1,nsamp+1), dtype=complex)
+
+  S_tot = np.zeros((nsamp+1,nsamp+1), dtype=complex)
+  H_tot = np.zeros((nsamp+1,nsamp+1), dtype=complex)
+
+  # read in pairing matrix 
+  with open(agp) as f:
+    data = np.genfromtxt(filter_lines(f,18),
+                         dtype = 'f',
+                         usecols = range(0,64,2))
+  
+  # small F expansion
+  small_F = []
+  for i in range(nsamp+1):
+    small_F.append(np.zeros((norb, norb), dtype=complex))
+
+  for i in range(nsamp+1):
+    for k in range(norb):
+      for l in range(norb):
+        small_F[i][k][l] = complex(data[i*norb + k][2*l],data[i*norb + k][2*l+1]) 
+  
+  # large F expansion 
+  large_F = []
+  for i in range(nsamp+1):
+    F = np.zeros((2*norb, 2*norb), dtype=complex)
+    for k in range(norb):
+      for l in range(norb):
+        F[k][l+norb] = small_F[i][k][l]
+        F[l+norb][k] = -1.0 * small_F[i][k][l]
+    large_F.append(F)
+
+  c = [0.0+0.0j] * (nsamp+1)
+  # fetch in coefficients
+  data = np.genfromtxt("eigvecs.txt", skip_header=1, dtype = ('i', 'f', 'f'), usecols = (0, 1, 3), names=['id', 'real', 'imag'])
+  for i in range(len(data['id']) ):
+    idx = data['id'][i]
+    value = complex(data[i][1], data[i][2])
+    c[idx] = value
+        
+  nu = 0.0+0.0j
+  de = 0.0+0.0j
+
+  # generate all possible upper-triangular pairs
+  pairs = []
+  for l in range(len(c)):
+    for r in range(l, len(c)):
+      pairs.append([l,r])
+
+  # total elements that need to be computed 
+  total_num_ele = len(pairs)
+
+  # number of elements per process
+  num_per_proc = total_num_ele / nprocs
+
+  # number of elements left 
+  num_left = total_num_ele % nprocs
+
+  # starting index 
+  start_ind = rank * num_per_proc
+
+  # end index 
+  end_ind = start_ind + num_per_proc
+  if (rank == (nprocs-1)):
+    end_ind += num_left
+
+  # loop over all pairs
+  for index in range(start_ind, end_ind):
+
+    # propagate initial state
+    F1 = large_F[pairs[index][0]]
+    F2 = large_F[pairs[index][1]]
+
+    # compute matrix elements
+    smat = 0.0+0,0j
+    hmat = 0.0+0.0j
+
+    if (pairs[index][0] == pairs[index][1]):
+      smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int, True)
+    else:
+      smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int, False)     
+
+    # fill in matrix
+    if (pairs[index][0] == pairs[index][1]):
+      h = hmat.real + 0j
+      s = smat.real + 0j
+      H[pairs[index][0]][pairs[index][1]] = h
+      S[pairs[index][0]][pairs[index][1]] = s
+    else:
+      H[pairs[index][0]][pairs[index][1]] = hmat
+      H[pairs[index][1]][pairs[index][0]] = np.conjugate(hmat)
+      S[pairs[index][0]][pairs[index][1]] = smat
+      S[pairs[index][1]][pairs[index][0]] = np.conjugate(smat)
+
+  # reduce to root process
+  H_tot = comm.reduce(H, op=MPI.SUM, root=0)
+  S_tot = comm.reduce(S, op=MPI.SUM, root=0)
+
+  # diagonalize H on root process
+  lowest_eng = 0.0
+  if (rank == 0):
+
+    nu = 0.0 + 0.0j
+    de = 0.0 + 0.0j
+    for i in range(nsamp+1):
+      for j in range(i, nsamp+1):
+        nu += np.conjugate(c[i]) * c[j] * H_tot[i][j]
+        de += np.conjugate(c[i]) * c[j] * S_tot[i][j]
+        if ( j != i ):
+          nu += np.conjugate(c[j]) * c[i] * H_tot[j][i]
+          de += np.conjugate(c[j]) * c[i] * S_tot[j][i]         
+
+    lowest_eng = nu / de
     print lowest_eng
 
   # broadcast the lowest energy
@@ -794,6 +876,9 @@ def main():
     energy = Parallel_Fast(F, nsamp, Q, pho, oe_int)   
   elif (method == "Print"):
     Output(F, Q, pho, oe_int) 
+  elif (method == "Read_Compute"):
+    nsamp  = int(sys.argv[5])
+    Read_In_Compute(oe_int, nsamp) 
   else:
     print "Unknown Method"
 
