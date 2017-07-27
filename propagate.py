@@ -609,11 +609,11 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
     # matrix to normalize 
     D = np.zeros((len(X)-num_bad, len(X)-num_bad))
     for i in range(len(X)-num_bad):
-      D[i][i] = 1.0 / np.sqrt(S_eff[i][i])
+      D[i][i] = 1.0 / np.sqrt(S_eff[i][i].real)
 
     # change to a normalized basis
-    #H_eff = np.dot(D, np.dot(H_eff, D))
-    #S_eff = np.dot(D, np.dot(S_eff, D))
+    H_eff = np.dot(D, np.dot(H_eff, D))
+    S_eff = np.dot(D, np.dot(S_eff, D))
 
     # diagonalize the effective Hamiltonian
     w, v = np.linalg.eig(np.dot(np.linalg.pinv(S_eff),H_eff))
@@ -623,7 +623,7 @@ def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
 
     # print eigenvalues
     for i in range(len(w)):
-      if (w[i].real < (H_eff[0][0]/S_eff[0][0]).real):
+      if (w[i].real <= (H_eff[0][0]/S_eff[0][0]).real):
 
         # store eigenvalues
         infile.write("energy is %10.7f + %10.7f j\n" % (w[i].real, w[i].imag))
@@ -790,6 +790,10 @@ def Output(F0, Q, w, oe_int):
   # store randomly sampled vectors
   X = []
 
+  # normalize F0
+  norm = norm_compute(F0)
+  F0 /= np.power(norm, 1.0/nalpha)
+
   # current left and right
   current_F = np.zeros((2*norb, 2*norb), dtype=complex)
 
@@ -822,6 +826,10 @@ def Output(F0, Q, w, oe_int):
 
     # propagate initial state
     new_F = f_propagate(X[i], Q, w, current_F)
+
+    # compute norm 
+    norm = norm_compute(new_F)
+    new_F /= np.power(norm, 1.0/nalpha)
 
     # write this F to file (only prints out the upper right corner)
     outfile.write("AGP index %5d \n" % i)
