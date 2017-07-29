@@ -353,110 +353,104 @@ def ham_ovlp_compute_fast(F1, F2, oe_int, Hermitian):
 
   # return matrix element
   return coeff[-1], hmat
- 
-# function that evaluates energy with random, non-Metropolis sampling (Large fluctuations)
-def Rand_Samp_Fast(F0, Nsamp, Q, w, oe_int):
 
-  # collections of numerator local quantities
-  numerator = []
+# fast algorithm that computes S^2 and overlap matrix elements between two pairing matrix
+def ssquare_ovlp_compute_fast(F1, F2, Hermitian):
 
-  # collections of denominator local quantities
-  denominator = []
+  # compute Pf(1+Mt), from zero to Na degrees
+  coeff = ovlp_compute_all(F1,F2,Hermitian)
 
-  # store randomly sampled vectors
-  X = []
-  X.append([0.0]*(2*norb))
+  # compute M matrix 
+  M = np.dot(F2, F1.transpose().conjugate())
 
-  # current left and right
-  current_lF = np.zeros((2*norb, 2*norb), dtype=complex)
-  current_rF = np.zeros((2*norb, 2*norb), dtype=complex)
-
-  for i in range(2*norb):
-    for j in range(2*norb):
-      current_lF[i][j] = F0[i][j]
-      current_rF[i][j] = F0[i][j]
-
-  # open output file
-  infile = open("test.txt", "w")
-
-  # generate auxiliary filed vectors
-  for samp in range(Nsamp):
-    
-    # sample from gaussian distributation
-    x = []
-    for i in range(2*norb):
-     x.append(np.random.normal(0.0,1.0))
-    X.append(x)
-
-  nu = 0.0+0.0j
-  de = 0.0+0.0j
-  S = np.zeros((len(X),len(X)), dtype=complex)
-  H = np.zeros((len(X),len(X)), dtype=complex)
-  # loop over all auxiliary field vectors
-  for l in range(len(X)):
-    for r in range(l, len(X)):
-
-      # propagate initial state
-      F1 = f_propagate(X[l], Q, w, current_lF)
-      F2 = f_propagate(X[r], Q, w, current_rF)
-
-      # compute matrix elements
-      smat = 0.0+0.0j
-      hmat = 0.0+0.0j
-      if (r == l):
-        smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int, True)
-      else:
-        smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int, False)
-
-      # fill in matrix
-      if (r == l):
-        h = hmat.real + 0j
-        s = smat.real + 0j
-        H[l][r] = h
-        S[l][r] = s
-
-      else:
-        H[l][r] = hmat
-        H[r][l] = np.conjugate(hmat)
-        S[l][r] = smat
-        S[r][l] = np.conjugate(smat)
-
-  # number of bad points
-  num_bad = 0
-  bad_index = []
-  good_index = []
-  for i in range(len(X)):
-    if ( (H[i][i]/S[i][i]).real < (H[0][0]/S[0][0]).real ):
-      num_bad += 1
-      bad_index.append(i)
+  # compute (-1)^i * M^(i+1)
+  list1 = []
+  for i in range(nalpha):
+    if (not Hermitian):
+      list1.append((-1)**i * np.linalg.matrix_power(M, i+1))
     else:
-      good_index.append(i)
+      list1.append((-1)**i * hermitian_mat_pow(M, i+1))          
 
-  H_eff = np.zeros((len(X)-num_bad, len(X)-num_bad), dtype=complex)
-  S_eff = np.zeros((len(X)-num_bad, len(X)-num_bad), dtype=complex)
+  # compute (-1)^i * M^i*rF
+  list2 = []
+  for i in range(nalpha):
+    if (not Hermitian):
+      list2.append((-1)**i * np.dot(np.linalg.matrix_power(M, i),F2))
+    else:
+      list2.append((-1)**i * np.dot(hermitian_mat_pow(M, i),F2))     
+
+  # compute (-1)^i * lF * M^i
+  list3 = []
+  for i in range(nalpha):
+    if (not Hermitian):
+      list3.append((-1)**i * np.dot(F1.transpose().conjugate(),np.linalg.matrix_power(M, i)))
+    else:
+      list3.append((-1)**i * np.dot(F1.transpose().conjugate(),hermitian_mat_pow(M, i)))
+
+  # one-body contribution
+  ob_eng = 0.0+0.0j
+
+  # two-body contribution
+  tb_eng = 0.0+0.0j
+
+  ob_mat = np.zeros((2*norb, 2*norb), dtype=complex)
+  # loop over first orbital index
+  for p in range(norb):
+    integral = 0.0+0.0j
+    # loop over degree in list1 from 1
+    for n in range(1, nalpha+1):
+      # degree in Pf
+      m = nalpha - n
+      # aa part
+      integral += ((list1[n-1][p][p])) * coeff[m]
+      # bb part
+      integral += ((list1[n-1][p+norb][p+norb])) * coeff[m]
+    ob_eng += 0.75 * integral
   
-  i = 0
-  for row in good_index:
-    j = 0
-    for col in good_index:
-      H_eff[i][j] = H[row][col]
-      S_eff[i][j] = S[row][col]
-      j += 1
-    i += 1
+  # two-body ssquare
+  # loop over first index
+  for p in range(norb):
+    # loop over second index 
+    for q in range(norb):
+      # loop over degrees in the non-Pfaffian part, starting from 1
+      for n in range(1, nalpha+1):
+        part1 = 0.0+0.0j
+        part2 = 0.0+0.0j
+        # degree in the Pfaffian part
+        m = nalpha - n
+        # loop over degrees in left part part1
+        for l in range(1,n):
+          s = n - l
+          # aaaa part
+          part1 += -0.25 * (list1[l-1][q][p]*list1[s-1][p][q]-list1[l-1][q][q]*list1[s-1][p][p]) * coeff[m]
 
-  w, v = np.linalg.eig(np.dot(np.linalg.inv(S_eff),H_eff))
-  print w
-  lowest_eng = w[0].real
-  for eigval in w:
-    if (eigval.real < lowest_eng):
-      lowest_eng = eigval.real
-  print lowest_eng
-  # close output file
-  infile.close()
+          # bbbb part
+          part1 += -0.25 * (list1[l-1][q+norb][p+norb]*list1[s-1][p+norb][q+norb]-list1[l-1][q+norb][q+norb]*list1[s-1][p+norb][p+norb]) * coeff[m]
 
-  # return energy 
-  return lowest_eng
+          # abab part
+          part1 +=  1.00 * (list1[l-1][p+norb][p]*list1[s-1][q][q+norb]-list1[l-1][p+norb][q+norb]*list1[s-1][q][p]) * coeff[m]
+          part1 +=  0.50 * (list1[l-1][q+norb][p]*list1[s-1][p][q+norb]-list1[l-1][q+norb][q+norb]*list1[s-1][p][p]) * coeff[m]
 
+        # loop over degrees in left part part2
+        for l in range(1,n+1):
+          s = n - l
+          # aaaa part
+          part2 += -0.25 * (list2[l-1][q][p]*list3[s][q][p]) * coeff[m]
+
+          # bbbb part
+          part2 += -0.25 * (list2[l-1][q+norb][p+norb]*list3[s][q+norb][p+norb]) * coeff[m]
+
+          # abab part
+          part2 +=  1.00 * (list2[l-1][p+norb][q]*list3[s][q+norb][p]) * coeff[m]
+          part2 +=  0.50 * (list2[l-1][q+norb][p]*list3[s][q+norb][p]) * coeff[m]
+        #print part2
+        tb_eng += (part1+part2)
+
+  ssmat = ob_eng + tb_eng
+
+  # return matrix element
+  return coeff[-1], ssmat
+ 
 def Parallel_Fast(F0, Nsamp, Q, w, oe_int):
 
   # get mpi comm
@@ -672,9 +666,9 @@ def Read_In_Compute(oe_int, nsamp):
 
   # read in pairing matrix 
   with open(agp) as f:
-    data = np.genfromtxt(filter_lines(f,18),
+    data = np.genfromtxt(filter_lines(f,14),
                          dtype = 'f',
-                         usecols = range(0,64,2))
+                         usecols = range(0,48,2))
   
   # small F expansion
   small_F = []
@@ -699,10 +693,13 @@ def Read_In_Compute(oe_int, nsamp):
   c = [0.0+0.0j] * (nsamp+1)
   # fetch in coefficients
   data = np.genfromtxt("eigvecs.txt", skip_header=1, dtype = ('i', 'f', 'f'), usecols = (0, 1, 3), names=['id', 'real', 'imag'])
-  for i in range(len(data['id']) ):
-    idx = data['id'][i]
-    value = complex(data[i][1], data[i][2])
-    c[idx] = value
+  if (nsamp != 0):
+    for i in range(len(data['id']) ):
+      idx = data['id'][i]
+      value = complex(data[i][1], data[i][2])
+      c[idx] = value
+  else:
+    c[0] = 1.0+0.0j
         
   nu = 0.0+0.0j
   de = 0.0+0.0j
@@ -742,19 +739,19 @@ def Read_In_Compute(oe_int, nsamp):
     hmat = 0.0+0.0j
 
     if (pairs[index][0] == pairs[index][1]):
-      smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int, True)
+      smat, ssmat = ssquare_ovlp_compute_fast(F1, F2, True)
     else:
-      smat, hmat = ham_ovlp_compute_fast(F1, F2, oe_int, False)     
+      smat, ssmat = ssquare_ovlp_compute_fast(F1, F2, False)     
 
     # fill in matrix
     if (pairs[index][0] == pairs[index][1]):
-      h = hmat.real + 0j
+      ss = ssmat.real + 0j
       s = smat.real + 0j
-      H[pairs[index][0]][pairs[index][1]] = h
+      H[pairs[index][0]][pairs[index][1]] = ss
       S[pairs[index][0]][pairs[index][1]] = s
     else:
-      H[pairs[index][0]][pairs[index][1]] = hmat
-      H[pairs[index][1]][pairs[index][0]] = np.conjugate(hmat)
+      H[pairs[index][0]][pairs[index][1]] = ssmat
+      H[pairs[index][1]][pairs[index][0]] = np.conjugate(ssmat)
       S[pairs[index][0]][pairs[index][1]] = smat
       S[pairs[index][1]][pairs[index][0]] = np.conjugate(smat)
 
@@ -876,10 +873,7 @@ def main():
 
   # propagate initial AGP and compute energy
   method = sys.argv[4]
-  if (method == "Fast"):
-    nsamp  = int(sys.argv[5])
-    energy = Rand_Samp_Fast(F, nsamp, Q, pho, oe_int)   
-  elif (method == "Parallel_test"):
+  if (method == "Parallel_test"):
     nsamp  = int(sys.argv[5])
     energy = Parallel_Fast(F, nsamp, Q, pho, oe_int)   
   elif (method == "Print"):
